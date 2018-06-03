@@ -9,4 +9,4 @@ Simple tool to download songs from SoundCloud.
 
 ### Installation ###
 
-`pip install sc`
+`pip install git+https://github.com/danieloconell/sc`
