@@ -1,16 +1,29 @@
 #!/usr/bin/env python3
+"""
+sc, download songs from SoundCloud.
+
+Usage:
+    sc <username> likes
+    sc <username> tracks
+    sc <url>
+
+Options:
+    -h, --help    Show this screen.
+    --version     Show version.
+    -a, --artist  Save songs in artist folders.
+"""
 
 import os
 import re
-import argparse
 from urllib.request import urlopen
+
+from sc import __version__
 
 import mutagen
 import requests
 from tqdm import tqdm
+from docopt import docopt
 
-
-# different way of using arguments
 
 CLIENTID = "Oa1hmXnTqqE7F2PKUpRdMZqWoguyDLV0"
 illegal_chars = "/\\"
@@ -40,7 +53,8 @@ def download_track(url):
 
 def get_favourites(user):
     r = requests.get(
-        urls["favorites"].format(user), params={"client_id": CLIENTID, "limit": 400}
+        urls["favorites"].format(user),
+        params={"client_id": CLIENTID, "limit": 400}
     )
     if r.status_code != 200:
         raise UsernameNotFound(user)
@@ -56,7 +70,8 @@ def get_user_id(user):
 
 def get_tracks(user_id):
     return requests.get(
-        urls["tracks"].format(user_id), params={"client_id": CLIENTID, "limit": 400}
+        urls["tracks"].format(user_id),
+        params={"client_id": CLIENTID, "limit": 400}
     ).json()
 
 
@@ -75,45 +90,23 @@ def get_song_id(url):
         raise InvalidURL(url)
 
 
-def pass_args():
-    global tracks, args
+def parse_args():
+    global args, tracks
     # act upon arguments
-    parser = argparse.ArgumentParser(
-        description="Simple program to download songs from SoundCloud."
-    )
-    parser.add_argument(
-        "--user", "-u", type=str,
-        help="User to all songs from."
-    )
-    parser.add_argument(
-        "--likes", "-l", type=str,
-        help="User to download liked tracks from."
-    )
-    parser.add_argument(
-        "--url", "-w", type=str,
-        help="URL of SoundCloud song to download."
-    )
-    # parser.add_argument(
-    #     "--artist", "-a", type=bool, default=False,
-    #     help="Save songs in artist folder."
-    # )
-    args = parser.parse_args()
-    if args.user:
-        user = args.user
+    args = docopt(__doc__, version=__version__)
+    if args["tracks"]:
+        user = args["<username>"]
         tracks = get_tracks(get_user_id(user))
-    elif args.likes:
-        user = args.likes
+    elif args["likes"]:
+        user = args["<username>"]
         tracks = get_favourites(user)
-    elif args.url:
-        songurl = args.url
+    elif args["<url>"]:
+        songurl = args["<url>"]
         tracks = [get_track(get_song_id(songurl))]
-    else:
-        print("Nothing to do.")
-        exit()
 
 
 def main():
-    pass_args()
+    parse_args()
     # iterate through songs with progress bar
     for track in tqdm(tracks, unit="song"):
 
@@ -128,8 +121,6 @@ def main():
 
         # download and save song
         filename = "".join([track["title"], ".mp3"])
-        # if args.artist:
-        #     filename = "/".join([track["artist"], filename])
         with open(filename, "wb") as song:
             song.write(download_track(track["stream_url"]).read())
 
@@ -147,11 +138,8 @@ def main():
         if track["artwork_url"]:
             song = mutagen.File(filename)
             song["APIC"] = mutagen.id3.APIC(
-                encoding=3,
-                mime="image/jpeg",
-                type=3,
-                desc="Cover",
-                data=artwork.content,
+                encoding=3, mime="image/jpeg", type=3,
+                desc="Cover", data=artwork.content,
             )
         song.save()
 
