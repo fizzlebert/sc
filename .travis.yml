@@ -2,7 +2,9 @@ language: python
 python:
     - "3.6"
 # install requirements
+before_install:
+  - pip install -r requirements.txt
 install:
-  - pip3 install -r requirements.txt
+  - python setup.py install
 script:
   - pytest

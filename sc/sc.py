@@ -39,12 +39,12 @@ tracks = None
 
 class UsernameNotFound(Exception):
     def __init__(self, username):
-        Exception.__init__()
+        pass
 
 
 class InvalidURL(Exception):
     def __init__(self, url):
-        Exception.__init__()
+        pass
 
 
 def download_track(url):
@@ -132,7 +132,6 @@ def get_song_id(url):
     """
     html = requests.get(url)
     song_id = re.search(r"soundcloud://sounds:(\d+)", html.text, re.IGNORECASE)
-    print(song_id.group(1), type(song_id.group(1)))
     if song_id:
         return song_id.group(1)
     else:
