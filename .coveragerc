@@ -1,0 +1,13 @@
+[run]
+source = .
+omit =
+    */tests*
+
+[report]
+exclude_lines =
+    if __name__ == .__main__.:
+    def parse_args
+    self.onException()
+    raise NotImplementedError
+    raise UsernameNotFound
+    raise InvalidURL(url)
