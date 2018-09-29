@@ -1,10 +1,11 @@
 language: python
 python:
     - "3.6"
-# install requirements
 before_install:
   - pip install -r requirements.txt
 install:
   - python setup.py install
 script:
-  - pytest
+  - coverage run --source sc -m pytest
+after_success:
+  - coverage report -m
