@@ -6,6 +6,7 @@ before_install:
 install:
   - python setup.py install
 script:
-  - coverage run --source sc -m pytest
+  - python -m coverage run --source sc -m pytest
 after_success:
-  - coverage report -m
+  - python -m coverage report -m
+  - coveralls
