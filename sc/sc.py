@@ -70,7 +70,7 @@ def get_favourites(user):
     """
     r = requests.get(
         URLS["favorites"].format(user),
-        params={"client_id": CLIENTID, "limit": 400}
+        params={"client_id": CLIENTID}
     )
     if r.status_code != 200:
         raise UsernameNotFound(user)
@@ -102,8 +102,7 @@ def get_tracks(user_id):
         json: Information about tracks by user
     """
     return requests.get(
-        URLS["tracks"].format(user_id),
-        params={"client_id": CLIENTID, "limit": 400}
+        URLS["tracks"].format(user_id), params={"client_id": CLIENTID}
     ).json()
 
 
@@ -138,6 +137,18 @@ def get_song_id(url):
         raise InvalidURL(url)
 
 
+def clean_title(title):
+    """Remove non hex characters from song title.
+
+    Args:
+        title (str): Song title
+
+    Returns:
+        str: Clean song title
+    """
+    return "".join([c for c in title if c not in ILLEGAL_CHARS])
+
+
 def parse_args():
     """Act upon arguments."""
     global tracks
@@ -159,9 +170,7 @@ def main():
     for track in tqdm(tracks, unit="song"):
 
         # clean song title
-        track["title"] = "".join(
-            c for c in track["title"] if c not in ILLEGAL_CHARS
-        )
+        track["title"] = clean_title(track["title"])
 
         # don't redownload song
         directory = track["user"]["username"]
