@@ -164,11 +164,16 @@ def main():
         )
 
         # don't redownload song
-        if "".join([track["title"], ".mp3"]) in os.listdir():
+        directory = track["user"]["username"]
+        if os.path.isfile("/".join([directory, track["title"] + ".mp3"])):
             continue
 
+        # if the artist directory doesn't exist make it
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
+
         # download and save song
-        filename = "".join([track["title"], ".mp3"])
+        filename = track["user"]["username"] + "/" + track["title"] + ".mp3"
         with open(filename, "wb") as song:
             song.write(download_track(track["stream_url"]).read())
 
@@ -183,7 +188,6 @@ def main():
         song["title"] = track["title"]
         song["artist"] = track["user"]["username"]
         song["genre"] = track["genre"]
-        song.save()
 
         # add artwork
         if track["artwork_url"]:
