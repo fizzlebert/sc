@@ -10,3 +10,6 @@
 ### Installation
 
 `pip install git+https://github.com/danieloconell/sc`
+
+### Like it?
+Feel free to let me know of any issues of contribution.  But if you like feel free star this repository.
