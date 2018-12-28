@@ -197,6 +197,7 @@ def main():
         song["title"] = track["title"]
         song["artist"] = track["user"]["username"]
         song["genre"] = track["genre"]
+        song.save()
 
         # add artwork
         if track["artwork_url"]:
