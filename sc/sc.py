@@ -11,16 +11,15 @@ Usage:
 Options:
     -h, --help    Show this screen.
     --version     Show version.
-    -a, --artist  Save songs in artist folders.
 """
 
 import os
 import re
 
 import mutagen
+import requests
 from tqdm import tqdm
 from docopt import docopt
-from requests import get
 
 from sc import __version__
 
@@ -36,63 +35,59 @@ URLS = {
 }
 
 tracks = playlists = None
+session = requests.Session()
+session.params.update({"client_id": CLIENTID})
 
 
 class UsernameNotFound(Exception):
-    def __init__(self, username):
+    def __init__(self, username: str):
         pass
 
 
 class InvalidURL(Exception):
-    def __init__(self, url):
+    def __init__(self, url: str):
         pass
 
 
-def download_track(url):
+def download_track(url: str):
     """Download a track based on url."""
-    return get(url, params={"client_id": CLIENTID})
+    return session.get(url)
 
 
-def get_favourites(user):
+def get_favourites(user: str):
     """Make a request for users favourite songs."""
-    r = get(URLS["favorites"].format(user), params={"client_id": CLIENTID})
+    r = session.get(URLS["favorites"].format(user))
     if r.status_code != 200:
         raise UsernameNotFound(user)
     return r.json()
 
 
-def get_user_id(user):
+def get_user_id(user: str):
     """Make a request to find user's id."""
-    r = get(URLS["user"].format(user), params={"client_id": CLIENTID})
+    r = session.get(URLS["user"].format(user))
     if r.status_code != 200:
         raise UsernameNotFound(user)
     return r.json()["id"]
 
 
-def get_tracks(user_id):
+def get_tracks(user_id: str):
     """Make a request for tracks by a user."""
-    return get(
-        URLS["tracks"].format(user_id), params={"client_id": CLIENTID}
-    ).json()
+    return session.get(URLS["tracks"].format(user_id)).json()
 
 
-def get_playlists(user_id):
+def get_playlists(user_id: str):
     """Make a request for playlists by a user."""
-    return get(
-        URLS["playlists"].format(user_id), params={"client_id": CLIENTID}
-    ).json()
+    return session.get(URLS["playlists"].format(user_id)).json()
 
 
-def get_track(song_id):
+def get_track(song_id: str):
     """Make a request for a song."""
-    return get(
-        URLS["track"].format(song_id), params={"client_id": CLIENTID}
-    ).json()
+    return session.get(URLS["track"].format(song_id)).json()
 
 
-def get_song_id(url):
+def get_song_id(url: str):
     """Get song id from website."""
-    html = get(url)
+    html = session.get(url)
     song_id = re.search(r"soundcloud://sounds:(\d+)", html.text, re.IGNORECASE)
     if song_id:
         return song_id.group(1)
@@ -100,13 +95,14 @@ def get_song_id(url):
         raise InvalidURL(url)
 
 
-def clean_title(title):
+def clean_title(title: str):
     """Remove non hex characters from song title."""
     return "".join([c for c in title if c not in ILLEGAL_CHARS])
 
 
-def set_metadata(file_name, track, album=None):
+def set_metadata(file_name: str, track: dict, album: str = None):
     """Set metadata for a specific file."""
+    print(type(track))
     song = mutagen.File(file_name, easy=True)
     if album:
         song["album"] = album
@@ -118,7 +114,7 @@ def set_metadata(file_name, track, album=None):
 
     # add artwork
     if track["artwork_url"]:
-        artwork = get(
+        artwork = session.get(
             track["artwork_url"].replace("large", "t500x500"), timeout=10
         )
         song = mutagen.File(file_name)
@@ -154,7 +150,7 @@ def download_playlists():
         download_tracks(album=playlist["title"])
 
 
-def download_tracks(album=None):
+def download_tracks(album: str = None):
     """Download specified tracks."""
     for track in tqdm(tracks, unit="song", desc=album):
         track["title"] = clean_title(track["title"])
