@@ -5,6 +5,7 @@ sc, download songs from SoundCloud.
 Usage:
     sc <username> likes
     sc <username> tracks
+    sc <username> playlists
     sc <url>
 
 Options:
@@ -15,12 +16,11 @@ Options:
 
 import os
 import re
-from urllib.request import urlopen
 
 import mutagen
-import requests
 from tqdm import tqdm
 from docopt import docopt
+from requests import get
 
 from sc import __version__
 
@@ -30,11 +30,12 @@ ILLEGAL_CHARS = "/\\"
 URLS = {
     "favorites": "http://api.soundcloud.com/users/{}/favorites",
     "user": "https://api.soundcloud.com/users/{}",
+    "playlists": "http://api.soundcloud.com/users/{}/playlists",
     "track": "https://api.soundcloud.com/tracks/{}",
     "tracks": "https://api.soundcloud.com/users/{}/tracks",
 }
 
-tracks = None
+tracks = playlists = None
 
 
 class UsernameNotFound(Exception):
@@ -48,88 +49,50 @@ class InvalidURL(Exception):
 
 
 def download_track(url):
-    """Download a track based on url.
-
-    Args:
-        url (str): URL from SoundCloud of song to download
-
-    Returns:
-        HTTPResponse: Raw bytes of song to save
-    """
-    return urlopen("".join([url, f"?client_id={CLIENTID}"]))
+    """Download a track based on url."""
+    return get(url, params={"client_id": CLIENTID})
 
 
 def get_favourites(user):
-    """Make a request for users favourite songs.
-
-    Args:
-        user (str): Name of user displayed on SoundCloud
-
-    Returns:
-        json: Information about user's favourite songs
-    """
-    r = requests.get(
-        URLS["favorites"].format(user),
-        params={"client_id": CLIENTID}
-    )
+    """Make a request for users favourite songs."""
+    r = get(URLS["favorites"].format(user), params={"client_id": CLIENTID})
     if r.status_code != 200:
         raise UsernameNotFound(user)
     return r.json()
 
 
 def get_user_id(user):
-    """Make a request to find user's id.
-
-    Args:
-        user (str): Name of user displayed on SoundCloud
-
-    Returns:
-        str: Id of user given by SoundCloud
-    """
-    r = requests.get(URLS["user"].format(user), params={"client_id": CLIENTID})
+    """Make a request to find user's id."""
+    r = get(URLS["user"].format(user), params={"client_id": CLIENTID})
     if r.status_code != 200:
         raise UsernameNotFound(user)
     return r.json()["id"]
 
 
 def get_tracks(user_id):
-    """Make a request for tracks by a user.
-
-    Args:
-        user_id (str): Id of user given by SoundCloud
-
-    Returns:
-        json: Information about tracks by user
-    """
-    return requests.get(
+    """Make a request for tracks by a user."""
+    return get(
         URLS["tracks"].format(user_id), params={"client_id": CLIENTID}
     ).json()
 
 
+def get_playlists(user_id):
+    """Make a request for playlists by a user."""
+    return get(
+        URLS["playlists"].format(user_id), params={"client_id": CLIENTID}
+    ).json()
+
+
 def get_track(song_id):
-    """Make a request for a song.
-
-    Args:
-        song_id (str): Song id given by SoundCloud
-
-    Returns:
-        json: Information about song
-    """
-    return requests.get(
+    """Make a request for a song."""
+    return get(
         URLS["track"].format(song_id), params={"client_id": CLIENTID}
     ).json()
 
 
 def get_song_id(url):
-    """Get song id from website.
-
-    Args:
-        url (str): URL from SoundCloud of song to download
-
-    Returns:
-        str: Id of song
-    """
-    html = requests.get(url)
+    """Get song id from website."""
+    html = get(url)
     song_id = re.search(r"soundcloud://sounds:(\d+)", html.text, re.IGNORECASE)
     if song_id:
         return song_id.group(1)
@@ -138,20 +101,36 @@ def get_song_id(url):
 
 
 def clean_title(title):
-    """Remove non hex characters from song title.
-
-    Args:
-        title (str): Song title
-
-    Returns:
-        str: Clean song title
-    """
+    """Remove non hex characters from song title."""
     return "".join([c for c in title if c not in ILLEGAL_CHARS])
+
+
+def set_metadata(file_name, track, album=None):
+    """Set metadata for a specific file."""
+    song = mutagen.File(file_name, easy=True)
+    if album:
+        song["album"] = album
+    song["title"] = track["title"]
+    song["artist"] = track["user"]["username"]
+    if track["genre"]:
+        song["genre"] = track["genre"]
+    song.save()
+
+    # add artwork
+    if track["artwork_url"]:
+        artwork = get(
+            track["artwork_url"].replace("large", "t500x500"), timeout=10
+        )
+        song = mutagen.File(file_name)
+        song["APIC"] = mutagen.id3.APIC(
+            encoding=3, mime="image/jpeg", type=3, desc="Cover", data=artwork.content
+        )
+        song.save()
 
 
 def parse_args():
     """Act upon arguments."""
-    global tracks
+    global tracks, playlists
     args = docopt(__doc__, version=__version__)
     if args["tracks"]:
         user = args["<username>"]
@@ -159,54 +138,56 @@ def parse_args():
     elif args["likes"]:
         user = args["<username>"]
         tracks = get_favourites(user)
+    elif args["playlists"]:
+        user = args["<username>"]
+        playlists = get_playlists(user)
     elif args["<url>"]:
         songurl = args["<url>"]
         tracks = [get_track(get_song_id(songurl))]
 
 
-def main():
-    """Iterate through songs and save them."""
-    parse_args()
-    for track in tqdm(tracks, unit="song"):
+def download_playlists():
+    """Download tracks from a playlist."""
+    global tracks
+    for playlist in tqdm(playlists, unit="playlist"):
+        tracks = playlist["tracks"]
+        download_tracks(album=playlist["title"])
 
-        # clean song title
+
+def download_tracks(album=None):
+    """Download specified tracks."""
+    for track in tqdm(tracks, unit="song", desc=album):
         track["title"] = clean_title(track["title"])
 
+        # save albums to separate folder
+        if album:
+            directory = os.path.join(track["user"]["username"], album)
+        else:
+            directory = track["user"]["username"]
+        file_name = os.path.join(directory, track["title"] + ".mp3")
+
         # don't redownload song
-        directory = track["user"]["username"]
-        if os.path.isfile("/".join([directory, track["title"] + ".mp3"])):
+        if os.path.isfile(file_name):
             continue
 
-        # if the artist directory doesn't exist make it
+        # if the artist directory doesn't exist make it; should only run once
         if not os.path.isdir(directory):
             os.makedirs(directory)
 
         # download and save song
-        filename = track["user"]["username"] + "/" + track["title"] + ".mp3"
-        with open(filename, "wb") as song:
-            song.write(download_track(track["stream_url"]).read())
+        with open(file_name, "wb") as song:
+            song.write(download_track(track["stream_url"]).content)
 
-        # download artwork
-        if track["artwork_url"]:
-            # use largest artwork
-            artwork_url = track["artwork_url"].replace("large", "t500x500")
-            artwork = requests.get(artwork_url)
+        set_metadata(file_name, track, album=album)
 
-        # set metadata of song
-        song = mutagen.File(filename, easy=True)
-        song["title"] = track["title"]
-        song["artist"] = track["user"]["username"]
-        song["genre"] = track["genre"]
-        song.save()
 
-        # add artwork
-        if track["artwork_url"]:
-            song = mutagen.File(filename)
-            song["APIC"] = mutagen.id3.APIC(
-                encoding=3, mime="image/jpeg", type=3,
-                desc="Cover", data=artwork.content,
-            )
-        song.save()
+def main():
+    """Iterate through songs and save them."""
+    parse_args()
+    if tracks:
+        download_tracks()
+    elif playlists:
+        download_playlists()
 
 
 if __name__ == "__main__":
