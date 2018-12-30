@@ -6,4 +6,4 @@ install:
 script:
   - pipenv run pytest --cov=.
 after_success:
-  - pipenv run coveralls
+  - pipenv run codecov
