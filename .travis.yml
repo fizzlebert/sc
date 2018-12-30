@@ -1,12 +1,9 @@
 language: python
 python:
     - "3.6"
-before_install:
-  - pip install -r requirements.txt
 install:
-  - python setup.py install
+  - make
 script:
-  - python -m coverage run --source sc -m pytest
+  - pipenv run pytest --cov=.
 after_success:
-  - python -m coverage report -m
-  - coveralls
+  - pipenv run coveralls
