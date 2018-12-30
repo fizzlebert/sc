@@ -2,6 +2,7 @@
 source = .
 omit =
     */tests*
+    setup.py
 
 [report]
 exclude_lines =
