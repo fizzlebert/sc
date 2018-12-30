@@ -1,6 +1,0 @@
-mutagen
-requests
-tqdm
-docopt
-coverage
-coveralls
