@@ -102,7 +102,6 @@ def clean_title(title: str):
 
 def set_metadata(file_name: str, track: dict, album: str = None):
     """Set metadata for a specific file."""
-    print(type(track))
     song = mutagen.File(file_name, easy=True)
     if album:
         song["album"] = album
