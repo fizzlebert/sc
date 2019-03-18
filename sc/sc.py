@@ -23,7 +23,7 @@ from docopt import docopt
 
 from sc import __version__
 
-CLIENTID = "Oa1hmXnTqqE7F2PKUpRdMZqWoguyDLV0"
+CLIENTID = "a3e059563d7fd3372b49b37f00a00bcf"
 ILLEGAL_CHARS = "/\\"
 
 URLS = {

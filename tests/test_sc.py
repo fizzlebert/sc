@@ -25,7 +25,7 @@ def test_get_user_id():
 def test_get_favourites():
     test_json = json.loads(
         urlopen(
-            "http://api.soundcloud.com/users/fizzlebert/favorites?client_id=Oa1hmXnTqqE7F2PKUpRdMZqWoguyDLV0"
+            "http://api.soundcloud.com/users/fizzlebert/favorites?client_id=a3e059563d7fd3372b49b37f00a00bcf"
         ).read()
     )
     assert sc.get_favourites("fizzlebert") == test_json
