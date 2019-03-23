@@ -30,11 +30,11 @@ CLIENT_ID = "a3e059563d7fd3372b49b37f00a00bcf"
 ILLEGAL_CHARS = "/\\"
 
 URLS = {
-    "favourites": "http://api.soundcloud.com/users/{}/favorites",
+    "favourites": "http://api.soundcloud.com/users/{}/favorites?limit=200",
     "user": "https://api.soundcloud.com/users/{}",
-    "playlists": "http://api.soundcloud.com/users/{}/playlists",
+    "playlists": "http://api.soundcloud.com/users/{}/playlists?limit=200",
     "track": "https://api.soundcloud.com/tracks/{}",
-    "tracks": "https://api.soundcloud.com/users/{}/tracks",
+    "tracks": "https://api.soundcloud.com/users/{}/tracks?limit=200",
     "search": "https://api.soundcloud.com/tracks/",
 }
 
