@@ -1,30 +1,12 @@
 #!/usr/bin/env python3
-"""
-sc, download songs from SoundCloud.
-
-Usage:
-    sc <username> likes
-    sc <username> tracks
-    sc <username> playlists
-    sc search <query> [<number>]
-    sc <url>
-
-Options:
-    <number>    Number of songs to download.
-    -h, --help  Show this screen.
-    --version   Show version.
-"""
-
 import os
 import re
+from argparse import ArgumentParser
 from concurrent import futures
 
 import mutagen
 import requests
 from tqdm import tqdm
-from docopt import docopt
-
-from sc import __version__
 
 CLIENT_ID = "a3e059563d7fd3372b49b37f00a00bcf"
 ILLEGAL_CHARS = "/\\"
@@ -41,16 +23,6 @@ URLS = {
 tracks = playlists = search = None
 session = requests.Session()
 session.params.update({"client_id": CLIENT_ID})
-
-
-class UsernameNotFound(Exception):
-    def __init__(self, username: str):
-        pass
-
-
-class InvalidURL(Exception):
-    def __init__(self, url: str):
-        pass
 
 
 def download_track(track: dict, album: str = None):
@@ -83,7 +55,7 @@ def get_favourites(user: str):
     """Make a request for users favourite songs."""
     r = session.get(URLS["favourites"].format(user))
     if r.status_code != 200:
-        raise UsernameNotFound(user)
+        raise RuntimeError(f"{user} not found")
     return r.json()
 
 
@@ -91,7 +63,7 @@ def get_user_id(user: str):
     """Make a request to find user's id."""
     r = session.get(URLS["user"].format(user))
     if r.status_code != 200:
-        raise UsernameNotFound(user)
+        raise RuntimeError(f"{user} not found")
     return r.json()["id"]
 
 
@@ -100,9 +72,11 @@ def get_tracks(user_id: str):
     return session.get(URLS["tracks"].format(user_id)).json()
 
 
-def get_playlists(user_id: str):
+def get_playlists(user: str):
     """Make a request for playlists by a user."""
-    return session.get(URLS["playlists"].format(user_id)).json()
+    playlists = session.get(URLS["playlists"].format(user)).json()
+    if "errors" in playlists:
+        raise RuntimeError(f"no playlist/s found for {user}")
 
 
 def get_track(song_id: str):
@@ -117,7 +91,7 @@ def get_song_id(url: str):
     if match:
         return match.group(1)
     else:
-        raise InvalidURL(url)
+        raise RuntimeError(f"Invalid url, {url}")
 
 
 def clean_title(title: str):
@@ -148,38 +122,44 @@ def set_metadata(file_name: str, track: dict, album: str = None):
         song.save()
 
 
-def parse_args(args: dict):
+def parse_args():
     """Act upon arguments."""
     global tracks, playlists
-    if args["tracks"]:
-        user = args["<username>"]
-        tracks = get_tracks(get_user_id(user))
-    elif args["likes"]:
-        user = args["<username>"]
-        tracks = get_favourites(user)
-    elif args["playlists"]:
-        user = args["<username>"]
-        playlists = get_playlists(user)
-    elif args["search"]:
-        number = int(args["<number>"]) if args["<number>"] else 1
-        tracks = get_search(args["<query>"], number=number)
-    elif args["<url>"]:
-        songurl = args["<url>"]
-        tracks = [get_track(get_song_id(songurl))]
+    parser = ArgumentParser(description="sc, download songs from SoundCloud.")
+    parser.add_argument("--likes", "-l", metavar="USER", type=str)
+    parser.add_argument("--tracks", "-t", metavar="USER", type=str)
+    parser.add_argument("--playlists", "-p", metavar="USER", type=str)
+    parser.add_argument("--search", "-s", metavar="QUERY", nargs="+", type=str)
+    parser.add_argument("--url", "-u", type=str)
+    args = parser.parse_args()
+
+    if args.tracks:
+        tracks = get_tracks(get_user_id(args.tracks))
+    elif args.likes:
+        tracks = get_favourites(args.likes)
+    elif args.playlists:
+        playlists = get_playlists(args.playlists)
+    elif args.search:
+        tracks = [get_search(args.search)]
+    elif args.url:
+        tracks = [get_track(get_song_id(args.url))]
 
 
 def download_playlists():
     """Download tracks from a playlist."""
-    global tracks
+    global playlists, tracks
     for playlist in tqdm(playlists, unit="playlist"):
         tracks = playlist["tracks"]
         download_tracks(album=playlist["title"])
 
 
-def get_search(search: str, number: int):
+def get_search(search: str):
     """Download a search query."""
-    r = session.get(URLS["search"], params={"q": search}).json()
-    return r[:number]
+    tracks = session.get(URLS["search"], params={"q": search}).json()
+    for index, track in enumerate(tracks):
+        print(f"{index}: {track['title']}, {track['user']['username']}")
+    index = int(input("Enter song index to download: "))
+    return tracks[index]
 
 
 def download_tracks(album: str = None):
@@ -196,8 +176,7 @@ def download_tracks(album: str = None):
 
 def main():
     """Iterate through songs and save them."""
-    args = docopt(__doc__, version=__version__)
-    parse_args(args)
+    parse_args()
     if tracks:
         download_tracks()
     elif playlists:
