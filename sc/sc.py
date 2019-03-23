@@ -4,7 +4,7 @@ import re
 from argparse import ArgumentParser
 from concurrent import futures
 
-import mutagen
+import eyed3
 import requests
 from tqdm import tqdm
 
@@ -21,6 +21,7 @@ URLS = {
 }
 
 tracks = playlists = search = None
+eyed3.log.setLevel("ERROR")  # Don't care if it's a non standard genre
 session = requests.Session()
 session.params.update({"client_id": CLIENT_ID})
 
@@ -75,8 +76,9 @@ def get_tracks(user_id: str):
 def get_playlists(user: str):
     """Make a request for playlists by a user."""
     playlists = session.get(URLS["playlists"].format(user)).json()
-    if "errors" in playlists:
+    if len(playlists) == 0:
         raise RuntimeError(f"no playlist/s found for {user}")
+    return playlists
 
 
 def get_track(song_id: str):
@@ -101,25 +103,25 @@ def clean_title(title: str):
 
 def set_metadata(file_name: str, track: dict, album: str = None):
     """Set metadata for a specific file."""
-    song = mutagen.File(file_name, easy=True)
-    if album:
-        song["album"] = album
-    song["title"] = track["title"]
-    song["artist"] = track["user"]["username"]
-    if track["genre"]:
-        song["genre"] = track["genre"]
-    song.save()
+    song = eyed3.load(file_name)
+    if song.tag is None:
+        song.initTag()
+    song.tag.title = track["title"]
+    song.tag.artist = track["user"]["username"]
 
-    # add artwork
+    if album:
+        song.tag.album = track["album"]
+    if track["genre"]:
+        song.tag.genre = eyed3.id3.Genre(track["genre"])
     if track["artwork_url"]:
         artwork = session.get(
             track["artwork_url"].replace("large", "t500x500"), timeout=10
         )
-        song = mutagen.File(file_name)
-        song["APIC"] = mutagen.id3.APIC(
-            encoding=3, mime="image/jpeg", type=3, desc="Cover", data=artwork.content
-        )
-        song.save()
+        if artwork.ok:
+            song.tag.images.set(3, artwork.content, "image/jpeg")
+        else:
+            raise RuntimeError(f"Failed to fetch artwork for {track['title']}")
+    song.tag.save()
 
 
 def parse_args():
