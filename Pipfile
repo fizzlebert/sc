@@ -3,11 +3,6 @@ name = "pypi"
 url = "https://pypi.org/simple"
 verify_ssl = true
 
-[dev-packages]
-pytest = "*"
-codecov = "*"
-pytest-cov = "*"
-
 [packages]
 mutagen = "*"
 requests = "*"

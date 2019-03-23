@@ -1,6 +1,5 @@
 # SC
 [![Build Status](https://travis-ci.org/danieloconell/sc.svg?branch=master)](https://travis-ci.org/danieloconell/sc)
-[![codecov](https://codecov.io/gh/danieloconell/sc/branch/master/graph/badge.svg)](https://codecov.io/gh/danieloconell/sc)
 
 > Simple tool to download songs from SoundCloud.
 

@@ -3,7 +3,3 @@ python:
     - "3.6"
 install:
   - make
-script:
-  - pipenv run pytest --cov=.
-after_success:
-  - pipenv run codecov
