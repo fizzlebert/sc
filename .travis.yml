@@ -1,5 +1,8 @@
 language: python
 python:
     - "3.6"
-script:
+install:
   - make
+  - make install
+script:
+  - make test
