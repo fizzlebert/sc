@@ -6,15 +6,18 @@ Usage:
     sc <username> likes
     sc <username> tracks
     sc <username> playlists
+    sc search <query> [<number>]
     sc <url>
 
 Options:
-    -h, --help    Show this screen.
-    --version     Show version.
+    <number>    Number of songs to download.
+    -h, --help  Show this screen.
+    --version   Show version.
 """
 
 import os
 import re
+from concurrent import futures
 
 import mutagen
 import requests
@@ -23,20 +26,21 @@ from docopt import docopt
 
 from sc import __version__
 
-CLIENTID = "a3e059563d7fd3372b49b37f00a00bcf"
+CLIENT_ID = "a3e059563d7fd3372b49b37f00a00bcf"
 ILLEGAL_CHARS = "/\\"
 
 URLS = {
-    "favorites": "http://api.soundcloud.com/users/{}/favorites",
+    "favourites": "http://api.soundcloud.com/users/{}/favorites",
     "user": "https://api.soundcloud.com/users/{}",
     "playlists": "http://api.soundcloud.com/users/{}/playlists",
     "track": "https://api.soundcloud.com/tracks/{}",
     "tracks": "https://api.soundcloud.com/users/{}/tracks",
+    "search": "https://api.soundcloud.com/tracks/",
 }
 
-tracks = playlists = None
+tracks = playlists = search = None
 session = requests.Session()
-session.params.update({"client_id": CLIENTID})
+session.params.update({"client_id": CLIENT_ID})
 
 
 class UsernameNotFound(Exception):
@@ -49,14 +53,35 @@ class InvalidURL(Exception):
         pass
 
 
-def download_track(url: str):
+def download_track(track: dict, album: str = None):
     """Download a track based on url."""
-    return session.get(url)
+    track["title"] = clean_title(track["title"])
+
+    # save albums to separate folder
+    if album:
+        directory = os.path.join(track["user"]["username"], album)
+    else:
+        directory = track["user"]["username"]
+    file_name = os.path.join(directory, track["title"] + ".mp3")
+
+    # don't redownload song
+    if os.path.isfile(file_name):
+        return
+
+    # if the artist directory doesn't exist make it; should only run once
+    if not os.path.isdir(directory):
+        os.makedirs(directory, exist_ok=True)
+
+    # download and save song
+    with open(file_name, "wb") as song:
+        song.write(session.get(track["stream_url"]).content)
+
+    set_metadata(file_name, track, album=album)
 
 
 def get_favourites(user: str):
     """Make a request for users favourite songs."""
-    r = session.get(URLS["favorites"].format(user))
+    r = session.get(URLS["favourites"].format(user))
     if r.status_code != 200:
         raise UsernameNotFound(user)
     return r.json()
@@ -86,11 +111,11 @@ def get_track(song_id: str):
 
 
 def get_song_id(url: str):
-    """Get song id from website."""
+    """Get soundcloud id from website."""
     html = session.get(url)
-    song_id = re.search(r"soundcloud://sounds:(\d+)", html.text, re.IGNORECASE)
-    if song_id:
-        return song_id.group(1)
+    match = re.search(r"soundcloud://sounds:(\d+)", html.text)
+    if match:
+        return match.group(1)
     else:
         raise InvalidURL(url)
 
@@ -123,10 +148,9 @@ def set_metadata(file_name: str, track: dict, album: str = None):
         song.save()
 
 
-def parse_args():
+def parse_args(args: dict):
     """Act upon arguments."""
     global tracks, playlists
-    args = docopt(__doc__, version=__version__)
     if args["tracks"]:
         user = args["<username>"]
         tracks = get_tracks(get_user_id(user))
@@ -136,6 +160,9 @@ def parse_args():
     elif args["playlists"]:
         user = args["<username>"]
         playlists = get_playlists(user)
+    elif args["search"]:
+        number = int(args["<number>"]) if args["<number>"] else 1
+        tracks = get_search(args["<query>"], number=number)
     elif args["<url>"]:
         songurl = args["<url>"]
         tracks = [get_track(get_song_id(songurl))]
@@ -149,40 +176,34 @@ def download_playlists():
         download_tracks(album=playlist["title"])
 
 
+def get_search(search: str, number: int):
+    """Download a search query."""
+    r = session.get(URLS["search"], params={"q": search}).json()
+    return r[:number]
+
+
 def download_tracks(album: str = None):
     """Download specified tracks."""
-    for track in tqdm(tracks, unit="song", desc=album):
-        track["title"] = clean_title(track["title"])
+    with futures.ThreadPoolExecutor(max_workers=15) as executor:
+        to_do = []
+        for track_data in tracks:
+            future = executor.submit(download_track, track_data)
+            to_do.append(future)
 
-        # save albums to separate folder
-        if album:
-            directory = os.path.join(track["user"]["username"], album)
-        else:
-            directory = track["user"]["username"]
-        file_name = os.path.join(directory, track["title"] + ".mp3")
-
-        # don't redownload song
-        if os.path.isfile(file_name):
-            continue
-
-        # if the artist directory doesn't exist make it; should only run once
-        if not os.path.isdir(directory):
-            os.makedirs(directory)
-
-        # download and save song
-        with open(file_name, "wb") as song:
-            song.write(download_track(track["stream_url"]).content)
-
-        set_metadata(file_name, track, album=album)
+        for future in tqdm(futures.as_completed(to_do), unit="song", total=len(tracks)):
+            _ = future.result()
 
 
 def main():
     """Iterate through songs and save them."""
-    parse_args()
+    args = docopt(__doc__, version=__version__)
+    parse_args(args)
     if tracks:
         download_tracks()
     elif playlists:
         download_playlists()
+    elif search:
+        download_tracks()
 
 
 if __name__ == "__main__":
