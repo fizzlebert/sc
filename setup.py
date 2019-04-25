@@ -12,11 +12,11 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/danieloconell/sc",
     packages=["sc"],
-    install_requires=["mutagen", "requests", "docopt", "tqdm"],
+    install_requires=["eyed3", "requests", "docopt", "tqdm"],
     classifiers=(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ),
-    entry_points={"console_scripts": ["sc= sc.sc:main"]},
+    entry_points={"console_scripts": ["sc=sc.sc:main"]},
 )
