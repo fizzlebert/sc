@@ -4,7 +4,7 @@ init:
 install:
 	pipenv install .
 test:
-	pipenv run sc -l fizzlebert
-	pipenv run sc -t fizzlebert
-	pipenv run sc -p coleur
-	pipenv run sc -u https://soundcloud.com/fizzlebert/mad-world
+	sc -l fizzlebert
+	sc -t fizzlebert
+	sc -p coleur
+	sc -u https://soundcloud.com/fizzlebert/mad-world
